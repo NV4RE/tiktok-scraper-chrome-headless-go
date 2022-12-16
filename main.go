@@ -37,7 +37,7 @@ func main() {
 	execPath := flag.String("exec-path", "", "Path to Chrome/Chromium or Brave executable")
 	headless := flag.Bool("headless", false, "Run browser in headless mode")
 	profileUrl := flag.String("profile-url", "https://www.tiktok.com/@bimratcha", "URL to the profile to scrape, e.g. https://www.tiktok.com/@username")
-	maxPageWaitSec := flag.Int("max-page-wait-sec", 10, "Maximum time to wait for page to load")
+	maxPageWaitSec := flag.Int("max-page-wait-sec", 20, "Maximum time to wait for page to load")
 	debugLog := flag.Bool("debug-log", false, "Enable debug logging")
 	output := flag.String("output", "output.json", "Output file")
 	flag.Parse()
