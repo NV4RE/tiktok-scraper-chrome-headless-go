@@ -15,9 +15,16 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v2
       - name: Generate build files
-        uses: thatisuday/go-cross-build@v1
+        uses: nv4re/go-cross-build@v1.69.0
         with:
             platforms: 'linux/amd64, darwin/amd64, windows/amd64'
-            name: 'program'
-            compress: 'true'
+            package: ""
+            name: 'tiktok-scraper'
+            compress: 'false'
             dest: 'dist'
+      - name: Copy build-artifacts
+        uses: skx/github-action-publish-binaries@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: "./dist/*.tar.gz"
