@@ -42,10 +42,42 @@ func main() {
 	output := flag.String("output", "output.json", "Output file")
 	flag.Parse()
 
+	dir, err := os.MkdirTemp("", "chromedp-example")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
 	opts := []chromedp.ExecAllocatorOption{
-		chromedp.UserDataDir(""),
-		chromedp.Flag("new-instance", true),
+		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
+
+		// After Puppeteer's default behavior.
+		chromedp.Flag("disable-background-networking", true),
+		chromedp.Flag("enable-features", "NetworkService,NetworkServiceInProcess"),
+		chromedp.Flag("disable-background-timer-throttling", true),
+		chromedp.Flag("disable-backgrounding-occluded-windows", true),
+		chromedp.Flag("disable-breakpad", true),
+		chromedp.Flag("disable-client-side-phishing-detection", true),
+		chromedp.Flag("disable-default-apps", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("disable-extensions", true),
+		chromedp.Flag("disable-features", "site-per-process,Translate,BlinkGenPropertyTrees"),
+		chromedp.Flag("disable-hang-monitor", true),
+		chromedp.Flag("disable-ipc-flooding-protection", true),
+		chromedp.Flag("disable-popup-blocking", true),
+		chromedp.Flag("disable-prompt-on-repost", true),
+		chromedp.Flag("disable-renderer-backgrounding", true),
+		chromedp.Flag("disable-sync", true),
+		chromedp.Flag("force-color-profile", "srgb"),
+		chromedp.Flag("metrics-recording-only", true),
+		chromedp.Flag("safebrowsing-disable-auto-update", true),
+		chromedp.Flag("enable-automation", true),
+		chromedp.Flag("password-store", "basic"),
+		chromedp.Flag("use-mock-keychain", true),
+
+		chromedp.UserDataDir(dir),
+		chromedp.DisableGPU,
 		chromedp.Flag("mute-audio", true),
 	}
 
@@ -73,7 +105,7 @@ func main() {
 		VideoStats: make([]VideoStat, 0),
 	}
 
-	err := chromedp.Run(ctx,
+	err = chromedp.Run(ctx,
 		chromedp.Navigate(*profileUrl),
 		chromedp.WaitVisible(VideosItem),
 		chromedp.Click(VideosItem, chromedp.NodeVisible),
