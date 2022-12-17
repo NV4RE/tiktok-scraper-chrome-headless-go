@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"log"
 	"os"
@@ -34,8 +36,8 @@ type VideoStat struct {
 	Description     string
 	Likes           string
 	Comments        string
-	UploadTime      string
-	DurationMinutes float64
+	UploadAt        string
+	DurationSeconds float64
 	Date            time.Time
 }
 
@@ -206,18 +208,44 @@ func getVideoStat(ctx context.Context, maxPageWait time.Duration, videoDuration 
 		return vStat, err
 	}
 
-	err = chromedp.Text(VideoDate, &vStat.UploadTime, chromedp.NodeVisible).Do(ctx)
+	err = chromedp.Text(VideoDate, &vStat.UploadAt, chromedp.NodeVisible).Do(ctx)
 	if err != nil {
 		return vStat, err
 	}
 
 	if videoDuration {
-		err = chromedp.WaitVisible(VideoPlayer).Do(ctx)
+		err := chromedp.Query(VideoPlayer,
+			chromedp.WaitFunc(func(ctx context.Context, cur *cdp.Frame, rId runtime.ExecutionContextID, ids ...cdp.NodeID) ([]*cdp.Node, error) {
+				if len(ids) == 0 {
+
+					log.Println("len(ids) == 0")
+					return nil, nil
+				}
+
+				var isVideoReady bool
+				if err := chromedp.Evaluate(
+					fmt.Sprintf(`document.querySelector('%s').readyState === 4`, VideoPlayer),
+					&isVideoReady,
+				).Do(ctx); err != nil {
+					return nil, err
+				}
+
+				if isVideoReady {
+					log.Println("video is ready")
+					return []*cdp.Node{}, nil
+				}
+
+				log.Println("video not ready")
+				return nil, nil
+
+			}),
+			chromedp.AtLeast(0),
+		).Do(ctx)
 		if err != nil {
 			return vStat, err
 		}
 
-		err = chromedp.Evaluate(fmt.Sprintf(`document.querySelector('%s').duration`, VideoPlayer), &vStat.DurationMinutes).Do(ctx)
+		err = chromedp.Evaluate(fmt.Sprintf(`document.querySelector('%s').duration`, VideoPlayer), &vStat.DurationSeconds).Do(ctx)
 		if err != nil {
 			return vStat, err
 		}
