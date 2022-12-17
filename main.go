@@ -18,19 +18,25 @@ const (
 	VideoLikes       = `[data-e2e="browse-like-count"]`
 	VideoComments    = `[data-e2e="browse-comment-count"]`
 	VideoNextButton  = `[data-e2e="arrow-right"]`
+	VideoDate        = `[data-e2e="browser-nickname"] :nth-child(2)`
+	VideoPlayer      = `[data-e2e="browse-video"] video`
 	CaptchaVerify    = `!!document.querySelector('.captcha_verify_container')`
 )
 
 type Result struct {
 	ProfileUrl string
+	StartedAt  time.Time
 	VideoStats []VideoStat
 }
 
 type VideoStat struct {
-	Url         string
-	Description string
-	Likes       string
-	Comments    string
+	Url             string
+	Description     string
+	Likes           string
+	Comments        string
+	UploadTime      string
+	DurationMinutes float64
+	Date            time.Time
 }
 
 func main() {
@@ -40,6 +46,8 @@ func main() {
 	maxPageWaitSec := flag.Int("max-page-wait-sec", 20, "Maximum time to wait for page to load")
 	debugLog := flag.Bool("debug-log", false, "Enable debug logging")
 	output := flag.String("output", "output.json", "Output file")
+	disableGpu := flag.Bool("disable-gpu", false, "Disable GPU")
+	videoDuration := flag.Bool("video-duration", false, "Get video duration")
 	flag.Parse()
 
 	dir, err := os.MkdirTemp("", "chromedp-example")
@@ -77,7 +85,6 @@ func main() {
 		chromedp.Flag("use-mock-keychain", true),
 
 		chromedp.UserDataDir(dir),
-		chromedp.DisableGPU,
 		chromedp.Flag("mute-audio", true),
 	}
 
@@ -87,6 +94,10 @@ func main() {
 
 	if *headless {
 		opts = append(opts, chromedp.Headless)
+	}
+
+	if *disableGpu {
+		opts = append(opts, chromedp.DisableGPU)
 	}
 
 	ctx, _ := chromedp.NewExecAllocator(context.Background(), opts...)
@@ -108,28 +119,22 @@ func main() {
 	err = chromedp.Run(ctx,
 		chromedp.Navigate(*profileUrl),
 		chromedp.WaitVisible(VideosItem),
-		chromedp.Click(VideosItem, chromedp.NodeVisible),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// wait for captcha
 			time.Sleep(3 * time.Second)
 
 			// check if captcha is present
-			var captchaPresent bool
-			if err := chromedp.Run(ctx, chromedp.Evaluate(CaptchaVerify, &captchaPresent)); err != nil {
-				return err
-			}
-
-			// if captcha is present, wait for it to be solved, and press enter in terminal
-			if captchaPresent {
-				fmt.Println("Please solve the captcha and press enter in terminal")
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
-			}
-
-			return nil
+			return checkCaptcha(ctx)
 		}),
+		chromedp.Click(VideosItem, chromedp.NodeVisible),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			for {
-				vStat, err := getVideoStat(ctx, time.Duration(*maxPageWaitSec)*time.Second)
+				err := checkCaptcha(ctx)
+				if err != nil {
+					return err
+				}
+
+				vStat, err := getVideoStat(ctx, time.Duration(*maxPageWaitSec)*time.Second, *videoDuration)
 				if err != nil {
 					return err
 				}
@@ -159,7 +164,24 @@ func main() {
 	}
 }
 
-func getVideoStat(ctx context.Context, maxPageWait time.Duration) (VideoStat, error) {
+func checkCaptcha(ctx context.Context) error {
+	var captchaPresent bool
+	if err := chromedp.Run(ctx, chromedp.Evaluate(CaptchaVerify, &captchaPresent)); err != nil {
+		return err
+	}
+
+	if captchaPresent {
+		fmt.Println("Please solve the captcha and press enter in terminal")
+		bufio.NewReader(os.Stdin).ReadBytes('\n')
+
+		// in-case the captcha is not solved
+		return checkCaptcha(ctx)
+	}
+
+	return nil
+}
+
+func getVideoStat(ctx context.Context, maxPageWait time.Duration, videoDuration bool) (VideoStat, error) {
 	vStat := VideoStat{}
 	ctx, cancel := context.WithTimeout(ctx, maxPageWait)
 	defer cancel()
@@ -184,7 +206,24 @@ func getVideoStat(ctx context.Context, maxPageWait time.Duration) (VideoStat, er
 		return vStat, err
 	}
 
-	log.Printf("URL: %s, Description: %s, Likes: %s, Comments: %s", vStat.Url, vStat.Description, vStat.Likes, vStat.Comments)
+	err = chromedp.Text(VideoDate, &vStat.UploadTime, chromedp.NodeVisible).Do(ctx)
+	if err != nil {
+		return vStat, err
+	}
+
+	if videoDuration {
+		err = chromedp.WaitVisible(VideoPlayer).Do(ctx)
+		if err != nil {
+			return vStat, err
+		}
+
+		err = chromedp.Evaluate(fmt.Sprintf(`document.querySelector('%s').duration`, VideoPlayer), &vStat.DurationMinutes).Do(ctx)
+		if err != nil {
+			return vStat, err
+		}
+	}
+
+	log.Printf("Video stat: %+v", vStat)
 
 	return vStat, err
 }
