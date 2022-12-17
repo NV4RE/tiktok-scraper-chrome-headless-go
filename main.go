@@ -116,6 +116,7 @@ func main() {
 	result := Result{
 		ProfileUrl: *profileUrl,
 		VideoStats: make([]VideoStat, 0),
+		StartedAt:  time.Now(),
 	}
 
 	err = chromedp.Run(ctx,
@@ -184,7 +185,9 @@ func checkCaptcha(ctx context.Context) error {
 }
 
 func getVideoStat(ctx context.Context, maxPageWait time.Duration, videoDuration bool) (VideoStat, error) {
-	vStat := VideoStat{}
+	vStat := VideoStat{
+		Date: time.Now(),
+	}
 	ctx, cancel := context.WithTimeout(ctx, maxPageWait)
 	defer cancel()
 
